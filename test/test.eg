@@ -4,3 +4,139 @@ require-macros:
       describe, it, before, after
       xdescribe, xit
       assert, asserts
+      expect-error
+   ..src ->
+      struct
+
+
+describe "type checking":
+   before:
+      struct @Person:
+         String? name
+         Number? age
+
+   it "accepts correct types":
+      p = @Person{name = "Bob", age = 41}
+      assert p.name === "Bob"
+      assert p.age === 41
+
+   it "rejects incorrect types":
+      expect-error Error:
+         p = @Person{name = "Bob", age = "41"}
+
+
+describe "projectors":
+   before:
+      struct @Person:
+         String! name
+         Number! age
+
+   it "cast to correct type if possible":
+      p = @Person{name = "Bob", age = "41"}
+      assert p.name === "Bob"
+      assert p.age === 41
+
+
+describe "structs inside structs":
+   before:
+      struct @A:
+         value
+      struct @B:
+         value
+      struct @C:
+         @A? a
+         @B? b
+
+   it "work":
+      a = @A{value = 10}
+      b = @B{value = 20}
+      c = @C{= a, = b}
+      assert c.a === a
+      assert c.b === b
+      assert c.a.value === 10
+      assert c.b.value === 20
+
+   it "error when not provided":
+      expect-error E.struct:
+         c = @C{}
+
+   it "error when wrong type":
+      expect-error E.struct:
+         c = @C{a = @B{value = 10}, b = @A{value = 20}}
+
+
+describe "recursive references":
+   before:
+      struct @Person:
+         String? name
+         Number? age
+         maybe @Person? mother
+         maybe @Person? father
+
+   it "work":
+      alice = @Person{name = "Alice", age = 45}
+      bob = @Person{name = "Bob", age = 51}
+      carmen = @Person{name = "Carmen", age = 20, mother = alice, father = bob}
+
+
+describe "methods":
+   before:
+      struct @Pair:
+         a, b
+         sum{} = @a + @b
+         product{} = @a * @b
+
+   it "can be called":
+      p = @Pair{a = 10, b = 20}
+      assert p.sum{} == 30
+      assert p.product{} == 200
+
+
+describe "validate":
+   before:
+      struct @Pair:
+         a, b
+         validate{} =
+            if @a + @b != 10:
+               throw E.invalid{"The sum must be 10."} 
+
+   it "at construction":
+      p = @Pair{a = 4, b = 6}
+      expect-error E.invalid:
+         @Pair{a = 4, b = 7}
+
+   it "when getting fields after modifying the structure":
+      p = @Pair{a = 4, b = 6}
+      p.a = 1
+      expect-error E.invalid:
+         p.a
+      expect-error E.invalid:
+         p.b
+
+   it "validate only when getting field":
+      p = @Pair{a = 4, b = 6}
+      p.a = 1
+      p.b = 9
+      assert p.a == 1
+      assert p.b == 9
+
+
+require:
+   kaiser -> [serialize, deserialize]
+
+round{x} = deserialize{serialize{x}}
+
+describe "serialization":
+
+   before:
+      struct @Person:
+         type-id: "PERSONNN"
+         String? name
+         Number? age
+
+   it "works":
+      p1 = @Person{name = "alice", age = 22}
+      p2 = round{p1}
+      assert p1 !== p2
+      assert p1 == p2
+

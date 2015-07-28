@@ -12,10 +12,11 @@
   "license": "MIT",
   "main": "./lib/index.js",
   "dependencies": {
-    "earlgrey-runtime": ">=0.0.7"
+    "earlgrey-runtime": ">=0.0.10",
+    "kaiser": ">=0.0.0"
   },
   "devDependencies": {
-    "earlgrey": ">=0.0.7",
+    "earlgrey": ">=0.0.10",
     "mocha": "^2.2.1",
     "earl-mocha": ">=0.0.2"
   },

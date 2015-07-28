@@ -1,0 +1,227 @@
+
+require:
+   util -> inspect
+   kaiser/reg
+
+provide:
+   INFO, CONTENTS
+   define-struct
+   struct
+
+
+if global["@@URSAMAJOR"]:
+   return global["@@URSAMAJOR"]
+
+
+INFO = Symbol{.STRUCT-INFO}
+CONTENTS = Symbol{.STRUCT-CONTENTS}
+VALIDATED = Symbol{.VALIDATED}
+
+proto-base = {
+   method to-string{} =
+      info = @[INFO]
+      '{info.name or "<struct>"}\{{values.join{", "}}\}' where
+         values = info.field-names each field -> '{field} = {repr}' where
+            repr = match @[field]:
+               String? s -> inspect{s}
+               x -> String{x}
+   method validate{} =
+      true
+   method [^Symbol.equals]{x} =
+      if Object.get-prototype-of{x} !== Object.get-prototype-of{@}:
+         return false
+      @[INFO].field-names each field ->
+         if @[field] != x[field]:
+            return false
+      return true
+}
+
+
+define-struct{name, fields, methods, options = {=}} =
+   proto = Object.create{proto-base}
+   proto[INFO] = {
+      = name
+      field-names = keys{fields}
+      method-names = keys{methods}
+   }
+
+   _validate{@} =
+      @[VALIDATED] = true
+      try:
+         @validate??{}
+      catch e:
+         @[VALIDATED] = false
+         throw e
+
+   construct{values = {=}} =
+      rval = Object.create{proto}
+      rval[CONTENTS] = {=}
+      if methods.has-own-property{.constructor}:
+         methods.constructor.apply{rval, arguments}
+      else:
+         items{fields} each {name, settings} ->
+            v = if{Object.has-property.call{values, name}, values[name], settings.default}
+            rval[name] = v
+      _validate{rval}
+      rval
+
+   items{fields} each {name, settings} ->
+      Object.define-property{proto, name} with {
+         method get{} =
+            if not @[VALIDATED]:
+               _validate{@}
+            @[CONTENTS][name]
+         method set{value} =
+            @[CONTENTS][name] =
+               if settings.validate:
+                  try:
+                     settings.validate{value}
+                  catch err:
+                     throw E.struct{'''Error setting '{name}': {err.message}''', err}
+               else:
+                  value
+            @[VALIDATED] = false
+      }
+
+   items{methods} each {name, m} ->
+      proto[name] = m
+
+   if options.type-id:
+      reg.register{proto} with {
+         type-id = options.type-id
+         serialize{@} =
+            @[CONTENTS]
+         deserialize{contents} =
+            construct{contents}
+      }
+
+   construct.prototype = proto
+   construct
+
+
+
+
+
+;; make-struct{name, fields, methods} =
+
+;;    make{values, mutable = false} =
+;;       rval = Object.create{proto}
+;;       items{fields} each {name, settings} ->
+;;          v = if{Object.has-property.call{values, name}, values[name], settings.default}
+;;          rval[name] = v
+
+;;       if not mutable and Object.freeze:
+;;          Object.freeze{rval}
+;;       else:
+;;          rval
+
+;;    make.field-names = keys{fields}
+;;    make.method-names = keys{methods}
+;;    make.struct-name = name
+;;    make.to-string{} = '{name}\{{this.field-names.join{", "}}\}'
+
+;;    proto = Object.create{null}
+;;    items{methods} each {name, meth} ->
+;;       proto[name] = meth
+
+;;    items{fields} each {name, settings} ->
+      
+
+;;    proto.validate-field{name, value} =
+;;       settings = fields[name]
+;;       if settings.validate:
+;;          try:
+;;             settings.validate{value}
+;;          catch err:
+;;             throw E.struct{'''Error setting '{name}': {err.message}''', err}
+;;       else:
+;;          value
+
+;;    ;; Object.define-property{proto, VERSION} with {
+;;    ;;    value = 1
+;;    ;;    writable = true
+;;    ;;    enumerable = false
+;;    ;;    configurable = true
+;;    ;; }
+
+;;    ;; proto.validate or= {} -> this
+
+;;    Object.define-property{proto, "constructor"} with {
+;;       value = make
+;;       enumerable = false
+;;    }
+
+;;    make.proto = proto
+
+;;    make["::check"]{match} =
+;;       {constructor => === make} -> true
+;;       else -> false
+
+;;    make
+
+
+macro{define-struct} struct{`{^name, ^body}`} =
+   #symbol{sname} or #value{sname} or sname is null = name
+   #multi! #multi{*stmts} = body
+
+   dfs = @deps["define-struct"]
+
+   fields = #data{}
+   methods = `methods`
+   results = #splice{
+      `methods = {=}`
+      `options = {=}`
+   }
+   stmts each match stmt ->
+      `type-id: ^type-id` ->
+         results.push with `options.type-id = ^type-id`
+      `^lhs = ^rhs` or lhs and rhs is null ->
+         pc = @PatternCompiler{lhs, @, opt} where opt =
+            @pattern_handlers.build_object & {
+               assign{#symbol{@camelCase! v} or #value{v}, value} =
+                  #do{#assign{`[^methods][^=v]`, value}}
+               declare{vars} = {}
+               wrap_target{match} =
+                  `^args -> ^body` ->
+                     {env => other_env} = body
+                     it = #symbol{"@"} & {env = other_env}
+                     it2 = #symbol{"self"} & {env = other_env}
+                     `_lambda{
+                        ^args
+                        splice: [let ^it = this, let ^it2 = this]
+                        ^body
+                        ^=null
+                        ^=false
+                     }`
+                  other ->
+                     other
+               success{x} =
+                  #multi{}
+            }
+         pc.compile{}
+
+         match pc:
+            {arguments => {}, vars => match} ->
+               {v} and match is rhs ->
+                  do: tr = `validate{x} = [^lhs = x, ^v]`
+                  null? ->
+                     fields.push with `^v = {^tr}`
+                  else ->
+                     fields.push with `^v = {^tr, default = ^rhs}`
+               else ->
+                  throw E.syntax.struct with
+                     '''Pattern '{@gettext{lhs}}' should define exactly one variable.'''
+                     node = lhs
+            {=> arguments} when rhs == null ->
+               throw E.syntax.struct with
+                  '''Missing method body for: '{@gettext{lhs}}' '''
+                  node = lhs
+            {=> arguments} ->
+               results.push with pc.extract_from_rhs{rhs}
+
+   results.push with `^name = [^dfs]{^=sname, ^fields, methods, options}`
+   results
+
+
+
+global["@@URSAMAJOR"] = module.exports
