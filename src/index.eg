@@ -99,67 +99,6 @@ define-struct{name, fields, methods, options = {=}} =
    construct
 
 
-
-
-
-;; make-struct{name, fields, methods} =
-
-;;    make{values, mutable = false} =
-;;       rval = Object.create{proto}
-;;       items{fields} each {name, settings} ->
-;;          v = if{Object.has-property.call{values, name}, values[name], settings.default}
-;;          rval[name] = v
-
-;;       if not mutable and Object.freeze:
-;;          Object.freeze{rval}
-;;       else:
-;;          rval
-
-;;    make.field-names = keys{fields}
-;;    make.method-names = keys{methods}
-;;    make.struct-name = name
-;;    make.to-string{} = '{name}\{{this.field-names.join{", "}}\}'
-
-;;    proto = Object.create{null}
-;;    items{methods} each {name, meth} ->
-;;       proto[name] = meth
-
-;;    items{fields} each {name, settings} ->
-      
-
-;;    proto.validate-field{name, value} =
-;;       settings = fields[name]
-;;       if settings.validate:
-;;          try:
-;;             settings.validate{value}
-;;          catch err:
-;;             throw E.struct{'''Error setting '{name}': {err.message}''', err}
-;;       else:
-;;          value
-
-;;    ;; Object.define-property{proto, VERSION} with {
-;;    ;;    value = 1
-;;    ;;    writable = true
-;;    ;;    enumerable = false
-;;    ;;    configurable = true
-;;    ;; }
-
-;;    ;; proto.validate or= {} -> this
-
-;;    Object.define-property{proto, "constructor"} with {
-;;       value = make
-;;       enumerable = false
-;;    }
-
-;;    make.proto = proto
-
-;;    make["::check"]{match} =
-;;       {constructor => === make} -> true
-;;       else -> false
-
-;;    make
-
-
 macro{define-struct} struct{`{^name, ^body}`} =
    #symbol{sname} or #value{sname} or sname is null = name
    #multi! #multi{*stmts} = body
@@ -221,7 +160,6 @@ macro{define-struct} struct{`{^name, ^body}`} =
 
    results.push with `^name = [^dfs]{^=sname, ^fields, methods, options}`
    results
-
 
 
 global["@@URSAMAJOR"] = module.exports
