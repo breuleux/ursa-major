@@ -140,3 +140,13 @@ describe "serialization":
       assert p1 !== p2
       assert p1 == p2
 
+   it "does not accept invalid serializations":
+      ser = JSON.stringify with {
+         type-id = "PERSONNN"
+         data = {
+            name = {type-id = "native", data = "alice"}
+            age = {type-id = "native", data = "22"}
+         }
+      }
+      expect-error E.struct:
+         deserialize{ser}
