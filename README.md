@@ -8,6 +8,8 @@ Define structs in Earl Grey with typing and validation:
        ursa-major -> struct
 
     struct Person:
+       ;; use the uuid command in the console to generate a unique id for your struct
+       type-id: "46cb4b46-35b8-11e5-9645-e3f320d7342e"
        String? name
        Number? age
        nullable Person? mother
