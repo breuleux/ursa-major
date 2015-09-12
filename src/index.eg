@@ -41,6 +41,8 @@ define-struct{name, fields, methods, options = {=}} =
    proto = Object.create{proto-base}
    proto[INFO] = {
       = name
+      = fields
+      = methods
       field-names = keys{fields}
       method-names = keys{methods}
    }
@@ -60,7 +62,10 @@ define-struct{name, fields, methods, options = {=}} =
          methods.constructor.apply{rval, arguments}
       else:
          items{fields} each {name, settings} ->
-            v = if{Object.has-property.call{values, name}, values[name], settings.default}
+            default = if{Object.has-property.call{settings, .default}
+                         settings.default
+                         null}
+            v = if{Object.has-property.call{values, name}, values[name], default}
             rval[name] = v
       _validate{rval}
       rval
@@ -111,8 +116,9 @@ macro{define-struct} struct{`{^name, ^body}`} =
       `methods = {=}`
       `options = {=}`
    }
+
    stmts each match stmt ->
-      `type-id: ^type-id` ->
+      `type-id: ^type-id` or `id: ^type-id` ->
          results.push with `options.type-id = ^type-id`
       `^lhs = ^rhs` or lhs and rhs is null ->
          pc = @PatternCompiler{lhs, @, opt} where opt =
@@ -139,14 +145,40 @@ macro{define-struct} struct{`{^name, ^body}`} =
             }
          pc.compile{}
 
+         compile-description{match x} =
+            #macro{m} ->
+               #send{#macro{mm}, #void{}} where mm{ctx, info, form, arg} =
+                  try:
+                     m.call{info, ctx, info, form, arg}
+                  catch e:
+                     `E.type-specification{"Could not generate type specification."}`
+            #assign{#symbol{s} or #value{s}} ->
+               #data{#value{.assign}, #value{s}}
+            #send{#symbol{.get-checker}, #data{x}} ->
+               x
+            {operation in {"check", "project"
+                           "any", "all"
+                           "maybe"
+                           "send", "symbol", "data"
+                           "multi", "void"
+               }, *contents} ->
+               #data{#value{operation}, *cs} where cs =
+                  contents each c -> compile-description{c}
+            String? or Boolean? or null? or undefined? ->
+               #value{x}
+            else ->
+               #value{null}
+
          match pc:
             {arguments => {}, vars => match} ->
                {v} and match is rhs ->
-                  do: tr = `validate{x} = [^lhs = x, ^v]`
+                  do:
+                     tr = `validate{x} = [^lhs = x, ^v]`
+                     tp = `type{} = ^compile-description{pc.compiled}`
                   null? ->
-                     fields.push with `^v = {^tr}`
+                     fields.push with `^v = {^tr, ^tp}`
                   else ->
-                     fields.push with `^v = {^tr, default = ^rhs}`
+                     fields.push with `^v = {^tr, ^tp, default = ^rhs}`
                else ->
                   throw E.syntax.struct with
                      '''Pattern '{@gettext{lhs}}' should define exactly one variable.'''
