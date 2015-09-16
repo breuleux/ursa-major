@@ -36,9 +36,34 @@ proto-base = {
       return true
 }
 
+define-struct{spec} =
+   spec as {
+      => name
+      => mixins = {}
+   }
 
-define-struct{name, fields, methods, options = {=}} =
    proto = Object.create{proto-base}
+
+   mfields = {=}
+   mmethods = {=}
+
+   mixins each mixin ->
+      var m = mixin
+      if m.prototype:
+         m = m.prototype
+      if m[INFO] as info:
+         mfields &: info.fields
+         mmethods &: info.methods
+      else:
+         while true:
+            mmethods &: m
+            m = Object.get-prototype-of{m}
+            if not m or m === Object.prototype:
+               break
+
+   fields = mfields & [spec.fields or {=}]
+   methods = mmethods & [spec.methods or {=}]
+
    proto[INFO] = {
       = name
       = fields
@@ -91,9 +116,9 @@ define-struct{name, fields, methods, options = {=}} =
    items{methods} each {name, m} ->
       proto[name] = m
 
-   if options.type-id:
+   if spec.type-id:
       reg.register{proto} with {
-         type-id = options.type-id
+         type-id = spec.type-id
          serialize{@} =
             @[CONTENTS]
          deserialize{contents} =
@@ -104,7 +129,14 @@ define-struct{name, fields, methods, options = {=}} =
    construct
 
 
-macro{define-struct} struct{`{^name, ^body}`} =
+macro{define-struct} struct{`{^head, ^body}`} =
+
+   {name, mixins} =
+      match head:
+         `[^name < {^*mixins}]` -> {name, #data{*mixins}}
+         `[^name < ^mixins]` -> {name, #data{mixins}}
+         name -> {name, #data{}}
+
    #symbol{sname} or #value{sname} or sname is null = name
    #multi! #multi{*stmts} = body
 
@@ -114,12 +146,12 @@ macro{define-struct} struct{`{^name, ^body}`} =
    methods = `methods`
    results = #splice{
       `methods = {=}`
-      `options = {=}`
+      `var type-id = null`
    }
 
    stmts each match stmt ->
       `type-id: ^type-id` or `id: ^type-id` ->
-         results.push with `options.type-id = ^type-id`
+         results.push with `type-id = ^type-id`
       `^lhs = ^rhs` or lhs and rhs is null ->
          pc = @PatternCompiler{lhs, @, opt} where opt =
             @pattern_handlers.build_object & {
@@ -190,7 +222,20 @@ macro{define-struct} struct{`{^name, ^body}`} =
             {=> arguments} ->
                results.push with pc.extract_from_rhs{rhs}
 
-   results.push with `^name = [^dfs]{^=sname, ^fields, methods, options}`
+   results.push with
+      ```
+      ^name = [^dfs]{
+          name = ^=sname
+          fields = ^fields
+          methods = methods
+          mixins = ^mixins
+          type-id = type-id
+      }
+      ```
+
+      ;; if super:
+      ;;    then: `^name = ___extend{[^dfs]{^=sname, ^fields, methods, options}, ^super}`
+      ;;    else: `^name = [^dfs]{^=sname, ^fields, methods, options}`
    results
 
 

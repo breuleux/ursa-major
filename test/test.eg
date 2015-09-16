@@ -124,6 +124,56 @@ describe "validate":
       assert p.b == 9
 
 
+describe "struct inheritance":
+
+   it "inherit properties and methods":
+      struct @Animal:
+         String? name
+         name-twice{} = '{@name}{@name}'
+      struct @Dog < @Animal:
+         cry{} = '{@name} woofs!'
+      fido = @Dog{name = "Fido"}
+      assert fido.cry{} === "Fido woofs!"
+      assert fido.name-twice.{} === "FidoFido"
+
+   it "override properties and methods":
+      struct @Animal:
+         String? name
+         String? species
+         cry{} = "cry"
+      struct @Dog < @Animal:
+         species = .Dog
+         cry{} = "woof!"
+      fido = @Dog{name = "Fido"}
+      assert fido.species === "Dog"
+      assert fido.cry{} === "woof!"
+
+
+class TwiceNamer:
+   name-twice{} = '{@name}{@name}'
+
+describe "mixins":
+
+   it "simple object":
+      m = {method name-twice{} = '{@name}{@name}'}
+      struct @Person < m:
+         String? name
+      assert @Person{name = "Bob"}.name-twice{} === "BobBob"
+
+   it "multiple objects":
+      m1 = {method name-twice{} = '{@name}{@name}'}
+      m2 = {method name-thrice{} = '{@name}{@name}{@name}'}
+      struct @Person < {m1, m2}:
+         String? name
+      assert @Person{name = "Bob"}.name-twice{} === "BobBob"
+      assert @Person{name = "Bob"}.name-thrice{} === "BobBobBob"
+
+   it "normal class":
+      struct @Person < TwiceNamer:
+         String? name
+      assert @Person{name = "Bob"}.name-twice{} === "BobBob"
+
+
 require:
    kaiser -> [serialize, deserialize]
 
