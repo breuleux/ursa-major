@@ -27,9 +27,20 @@ proto-base = {
                x -> String{x}
    method validate{} =
       true
-   method update{obj} =
-      items{obj} each {k, v} ->
-         @[k] = v
+   method update{obj, validate = true} =
+      items{obj} each {name, value} ->
+         settings = @[INFO].fields[name]
+         if not settings:
+            throw E.invalid-field{'There is no field "{name}" in {@}'}
+         @[CONTENTS][name] =
+            if settings.validate:
+               try:
+                  settings.validate{value}
+               catch err:
+                  throw E.struct{'''Error setting '{name}': {err.message}''', err}
+            else:
+               value
+      validate and @validate??{}
       @
    method [^Symbol.equals]{x} =
       if Object.get-prototype-of{x} !== Object.get-prototype-of{@}:
@@ -104,14 +115,6 @@ define-struct{spec} =
       method-names = keys{methods}
    }
 
-   _validate{@} =
-      @[VALIDATED] = true
-      try:
-         @validate??{}
-      catch e:
-         @[VALIDATED] = false
-         throw e
-
    construct{values = {=}} =
       rval = Object.create{proto}
       rval[CONTENTS] = {=}
@@ -123,26 +126,16 @@ define-struct{spec} =
                          settings.default
                          null}
             v = if{Object.has-property.call{values, name}, values[name], default}
-            rval[name] = v
-      _validate{rval}
+            rval.update{{name => v}, false}
+      rval.validate??{}
       rval
 
    items{fields} each {name, settings} ->
       Object.define-property{proto, name} with {
          method get{} =
-            if not @[VALIDATED]:
-               _validate{@}
             @[CONTENTS][name]
          method set{value} =
-            @[CONTENTS][name] =
-               if settings.validate:
-                  try:
-                     settings.validate{value}
-                  catch err:
-                     throw E.struct{'''Error setting '{name}': {err.message}''', err}
-               else:
-                  value
-            @[VALIDATED] = false
+            @update with {name => value}
       }
 
    items{methods} each {name, m} ->

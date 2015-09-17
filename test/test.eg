@@ -108,18 +108,14 @@ describe "validate":
       expect-error E.invalid:
          @Pair{a = 4, b = 7}
 
-   it "when getting fields after modifying the structure":
+   it "when setting fields":
       p = @Pair{a = 4, b = 6}
-      p.a = 1
       expect-error E.invalid:
-         p.a
-      expect-error E.invalid:
-         p.b
+         p.a = 1
 
-   it "validate only when getting field":
+   it "can update fields all at once":
       p = @Pair{a = 4, b = 6}
-      p.a = 1
-      p.b = 9
+      p.update{a = 1, b = 9}
       assert p.a == 1
       assert p.b == 9
 
