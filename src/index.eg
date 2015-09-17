@@ -27,6 +27,10 @@ proto-base = {
                x -> String{x}
    method validate{} =
       true
+   method update{obj} =
+      items{obj} each {k, v} ->
+         @[k] = v
+      @
    method [^Symbol.equals]{x} =
       if Object.get-prototype-of{x} !== Object.get-prototype-of{@}:
          return false
