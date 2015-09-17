@@ -46,11 +46,25 @@ define-struct{spec} =
 
    mfields = {=}
    mmethods = {=}
+   accmethods = {
+      ;; constructor = {true, {}}
+      validate = {false, {}}
+   }
+
+   contribute-accmethods{m} =
+      items{accmethods} each {name, {match require-own, acc}} ->
+         true? ->
+            if Object.has-own-property{m, name}:
+               acc.push{m[name]}
+         else ->
+            if m[name]:
+               acc.push{m[name]}
 
    mixins each mixin ->
       var m = mixin
       if m.prototype:
          m = m.prototype
+      contribute-accmethods{m}
       if m[INFO] as info:
          mfields &: info.fields
          mmethods &: info.methods
@@ -62,7 +76,21 @@ define-struct{spec} =
                break
 
    fields = mfields & [spec.fields or {=}]
+
+   contribute-accmethods{spec.methods}
    methods = mmethods & [spec.methods or {=}]
+   methods &:
+      object with items{accmethods} each {name, {_, match parts}} ->
+         {} ->
+            continue
+         {f} ->
+            {name, f}
+         else ->
+            method aggregated{*args} =
+               var rval = null
+               parts each part -> rval = part.apply{@, args}
+               rval
+            {name, aggregated}
 
    proto[INFO] = {
       = name

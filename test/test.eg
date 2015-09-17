@@ -148,6 +148,21 @@ describe "struct inheritance":
       assert fido.species === "Dog"
       assert fido.cry{} === "woof!"
 
+   it "enforce all validation":
+      struct @Animal:
+         String? name
+         validate{} =
+            if @name.starts-with{"X"}:
+               throw E.unthinkable.X{"No animal has a name that starts with X"}
+      struct @Dog < @Animal:
+         validate{} =
+            if @name.starts-with{"Z"}:
+               throw E.unthinkable.Z{"No animal has a name that starts with Z"}
+      expect-error E.unthinkable.X:
+         @Dog{name = "Xylophone"}
+      expect-error E.unthinkable.Z:
+         @Dog{name = "Zebra"}
+
 
 class TwiceNamer:
    name-twice{} = '{@name}{@name}'
