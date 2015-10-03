@@ -107,26 +107,32 @@ define-struct{spec} =
                rval
             {name, aggregated}
 
+   defaults = object with
+      items{fields} each {name, settings} ->
+         if Object.has-property.call{settings, .default}:
+            {name, settings.default}
+         else:
+            {name, null}
+
    proto[INFO] = {
       = name
       = fields
       = methods
       field-names = keys{fields}
       method-names = keys{methods}
+      = defaults
    }
 
    construct{values = {=}} =
       rval = Object.create{proto}
       rval[CONTENTS] = {=}
+      Object.prevent-extensions{rval}
       if methods.has-own-property{.constructor}:
          methods.constructor.apply{rval, arguments}
       else:
-         items{fields} each {name, settings} ->
-            default = if{Object.has-property.call{settings, .default}
-                         settings.default
-                         null}
-            v = if{Object.has-property.call{values, name}, values[name], default}
-            rval.update{{name => v}, false}
+         rval[CONTENTS] &: defaults
+         items{defaults & values} each {name, value} ->
+            rval.update{{name => value}, false}
       rval.validate??{}
       rval
 
@@ -174,9 +180,11 @@ macro{define-struct} struct{`{^head, ^body}`} =
       `var type-id = null`
    }
 
-   stmts each match stmt ->
+   process-description{match stmt, err = null} =
       `type-id: ^type-id` or `id: ^type-id` ->
          results.push with `type-id = ^type-id`
+      `^descr !! ^err` ->
+         process-description{descr, err}
       `^lhs = ^rhs` or lhs and rhs is null ->
          pc = @PatternCompiler{lhs, @, opt} where opt =
             @pattern_handlers.build_object & {
@@ -230,7 +238,11 @@ macro{define-struct} struct{`{^head, ^body}`} =
             {arguments => {}, vars => match} ->
                {v} and match is rhs ->
                   do:
-                     tr = `validate{x} = [^lhs = x, ^v]`
+                     tr =
+                        if err:
+                           `validate{x} = [^lhs = x, ^v] !! _ -> throw ^err`
+                        else:
+                           `validate{x} = [^lhs = x, ^v]`
                      tp = `type{} = ^compile-description{pc.compiled}`
                   null? ->
                      fields.push with `^v = {^tr, ^tp}`
@@ -246,6 +258,8 @@ macro{define-struct} struct{`{^head, ^body}`} =
                   node = lhs
             {=> arguments} ->
                results.push with pc.extract_from_rhs{rhs}
+
+   stmts each stmt -> process-description{stmt}
 
    results.push with
       ```
