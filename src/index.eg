@@ -31,13 +31,15 @@ proto-base = {
       items{obj} each {name, value} ->
          settings = @[INFO].fields[name]
          if not settings:
-            throw E.invalid-field{'There is no field "{name}" in {@}'}
+            throw E.struct.invalid-field[name]{'There is no field "{name}" in {@}'}
          @[CONTENTS][name] =
             if settings.validate:
                try:
                   settings.validate{value}
                catch err:
-                  throw E.struct{'''Error setting '{name}': {err.message}''', err}
+                  throw E.struct.invalid-value[name] with
+                     '''Error setting '{name}': {err.message}'''
+                     err
             else:
                value
       validate and @validate??{}
@@ -157,6 +159,10 @@ define-struct{spec} =
       }
 
    construct.prototype = proto
+   construct._unsafe{init} =
+      rval = Object.create{proto}
+      rval[CONTENTS] = clone{init}
+      rval
    construct
 
 

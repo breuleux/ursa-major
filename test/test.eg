@@ -59,6 +59,15 @@ describe "structs inside structs":
       assert c.a.value === 10
       assert c.b.value === 20
 
+   it "can project":
+      @A! a = {value = 10}
+      @B! b = {value = 20}
+      @C! c = {= a, = b}
+      assert c.a === a
+      assert c.b === b
+      assert c.a.value === 10
+      assert c.b.value === 20
+
    it "error when not provided":
       expect-error E.struct:
          c = @C{}
@@ -214,6 +223,11 @@ describe "serialization":
       }
       expect-error E.struct:
          deserialize{ser}
+
+   it "no deserialization from unsafe":
+      person = @Person._unsafe with {name = 123, age = "Rachid"}
+      expect-error E.struct:
+         round{person}
 
 
 describe "type descriptions":
